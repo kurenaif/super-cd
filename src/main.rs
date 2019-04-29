@@ -36,6 +36,8 @@ use log4rs::append::file::FileAppender;
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::config::{Appender, Config, Root};
 use log::LevelFilter;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use util::event::{Event, Events};
 
@@ -56,20 +58,7 @@ impl Default for App {
     }
 }
 
-fn main() -> Result<(), failure::Error> {
-
-    let logfile = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build("log/scd.log")?;
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(Root::builder()
-                    .appender("logfile")
-                    .build(LevelFilter::Info))?;
-
-    log4rs::init_config(config)?;
-
+fn render(mut app: App) -> Result<(), failure::Error> {
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
@@ -79,10 +68,6 @@ fn main() -> Result<(), failure::Error> {
 
     // Setup event handlers
     let events = Events::new();
-
-    // Create default app state
-    let mut app = App::default();
-
     loop {
         // Draw UI
         terminal.draw(|mut f| {
@@ -137,5 +122,29 @@ fn main() -> Result<(), failure::Error> {
         }
         info!("{}", app.input);
     }
+    Ok(())
+}
+
+
+fn main() -> Result<(), failure::Error> {
+
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+        .build("log/scd.log")?;
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .build(Root::builder()
+                    .appender("logfile")
+                    .build(LevelFilter::Info))?;
+
+    log4rs::init_config(config)?;
+
+
+    // Create default app state
+    let mut app = App::default();
+
+    render(app);
+
     Ok(())
 }
