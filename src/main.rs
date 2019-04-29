@@ -10,7 +10,13 @@
 ///   * Pressing Enter pushes the current input in the history of previous
 ///   messages
 
-#[allow(dead_code)]
+
+#[macro_use]
+extern crate log;
+extern crate log4rs;
+
+extern crate env_logger;
+
 mod util;
 
 use std::io::{self, Write};
@@ -26,6 +32,10 @@ use tui::style::{Color, Style};
 use tui::widgets::{Block, Borders, List, Paragraph, Text, Widget};
 use tui::Terminal;
 use unicode_width::UnicodeWidthStr;
+use log4rs::append::file::FileAppender;
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::config::{Appender, Config, Root};
+use log::LevelFilter;
 
 use util::event::{Event, Events};
 
@@ -47,6 +57,19 @@ impl Default for App {
 }
 
 fn main() -> Result<(), failure::Error> {
+
+    let logfile = FileAppender::builder()
+        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+        .build("log/scd.log")?;
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .build(Root::builder()
+                    .appender("logfile")
+                    .build(LevelFilter::Info))?;
+
+    log4rs::init_config(config)?;
+
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
@@ -69,6 +92,7 @@ fn main() -> Result<(), failure::Error> {
                 .margin(2)
                 .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
                 .split(f.size());
+
             Paragraph::new([Text::raw(&app.input)].iter())
                 .style(Style::default().fg(Color::Yellow))
                 .block(Block::default().borders(Borders::ALL).title("Input"))
@@ -79,6 +103,7 @@ fn main() -> Result<(), failure::Error> {
                 .iter()
                 .enumerate()
                 .map(|(i, m)| Text::raw(format!("{}: {}", i, m)));
+
             List::new(messages)
                 .block(Block::default().borders(Borders::ALL).title("Messages"))
                 .render(&mut f, chunks[1]);
@@ -110,6 +135,7 @@ fn main() -> Result<(), failure::Error> {
             },
             _ => {}
         }
+        info!("{}", app.input);
     }
     Ok(())
 }
