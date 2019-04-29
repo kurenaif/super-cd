@@ -66,66 +66,79 @@ fn render(app: App) -> Result<(), failure::Error> {
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let app_input_clone = app.input.clone();
-    let mut app_input = app_input_clone.lock().unwrap();
-
-    let app_messages_clone = app.messages.clone();
-    let mut app_messages = app_messages_clone.lock().unwrap();
 
     // Setup event handlers
     let events = Events::new();
     loop {
         // Draw UI
-        terminal.draw(|mut f| {
+        {
+            let app_input_clone = app.input.clone();
+            let mut app_input = app_input_clone.lock().unwrap();
 
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .margin(2)
-                .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
-                .split(f.size());
+            let app_messages_clone = app.messages.clone();
+            let mut app_messages = app_messages_clone.lock().unwrap();
 
-            Paragraph::new([Text::raw(&*app_input)].iter())
-                .style(Style::default().fg(Color::Yellow))
-                .block(Block::default().borders(Borders::ALL).title("Input"))
-                .render(&mut f, chunks[0]);
+            terminal.draw(|mut f| {
 
-            let messages = app_messages
-                .iter()
-                .enumerate()
-                .map(|(i, m)| Text::raw(format!("{}: {}", i, m)));
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .margin(2)
+                    .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
+                    .split(f.size());
 
-            List::new(messages)
-                .block(Block::default().borders(Borders::ALL).title("Messages"))
-                .render(&mut f, chunks[1]);
-        })?;
+                Paragraph::new([Text::raw(&*app_input)].iter())
+                    .style(Style::default().fg(Color::Yellow))
+                    .block(Block::default().borders(Borders::ALL).title("Input"))
+                    .render(&mut f, chunks[0]);
 
-        // Put the cursor back inside the input box
-        write!(
-            terminal.backend_mut(),
-            "{}",
-            Goto(4 + app_input.width() as u16, 4)
-        )?;
+                let messages = app_messages
+                    .iter()
+                    .enumerate()
+                    .map(|(i, m)| Text::raw(format!("{}: {}", i, m)));
 
-        // Handle input
-        match events.next()? {
-            Event::Input(input) => match input {
-                Key::Char('q') => {
-                    break;
-                }
-                Key::Char('\n') => {
-                    app_messages.push(app_input.drain(..).collect());
-                }
-                Key::Char(c) => {
-                    app_input.push(c);
-                }
-                Key::Backspace => {
-                    app_input.pop();
-                }
-                _ => {}
-            },
-            _ => {}
+                List::new(messages)
+                    .block(Block::default().borders(Borders::ALL).title("Messages"))
+                    .render(&mut f, chunks[1]);
+            })?;
         }
-        info!("{}", app_input);
+
+        {
+            let app_input_clone = app.input.clone();
+            let mut app_input = app_input_clone.lock().unwrap();
+
+            let app_messages_clone = app.messages.clone();
+            let mut app_messages = app_messages_clone.lock().unwrap();
+
+            // Put the cursor back inside the input box
+            write!(
+                terminal.backend_mut(),
+                "{}",
+                Goto(4 + app_input.width() as u16, 4)
+            )?;
+
+            // Handle input
+            match events.next()? {
+                Event::Input(input) => match input {
+                    Key::Char('q') => {
+                        break;
+                    }
+                    Key::Char('\n') => {
+                        app_messages.push(app_input.drain(..).collect());
+                    }
+                    Key::Char(c) => {
+                        app_input.push(c);
+                    }
+                    Key::Backspace => {
+                        app_input.pop();
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+            info!("{}", app_input);
+        }
+
+        
     }
     Ok(())
 }
