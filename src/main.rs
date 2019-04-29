@@ -44,27 +44,33 @@ use util::event::{Event, Events};
 /// App holds the state of the application
 struct App {
     /// Current value of the input box
-    input: String,
+    input: Arc<Mutex<String>>,
     /// History of recorded messages
-    messages: Vec<String>,
+    messages: Arc<Mutex<Vec<String>>>,
 }
 
 impl Default for App {
     fn default() -> App {
         App {
-            input: String::new(),
-            messages: Vec::new(),
+            input: Arc::new(Mutex::new(String::new())),
+            messages: Arc::new(Mutex::new(Vec::new())),
         }
     }
 }
 
-fn render(mut app: App) -> Result<(), failure::Error> {
+fn render(app: App) -> Result<(), failure::Error> {
     // Terminal initialization
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
     let stdout = AlternateScreen::from(stdout);
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
+
+    let app_input_clone = app.input.clone();
+    let mut app_input = app_input_clone.lock().unwrap();
+
+    let app_messages_clone = app.messages.clone();
+    let mut app_messages = app_messages_clone.lock().unwrap();
 
     // Setup event handlers
     let events = Events::new();
@@ -78,13 +84,12 @@ fn render(mut app: App) -> Result<(), failure::Error> {
                 .constraints([Constraint::Length(3), Constraint::Min(1)].as_ref())
                 .split(f.size());
 
-            Paragraph::new([Text::raw(&app.input)].iter())
+            Paragraph::new([Text::raw(&*app_input)].iter())
                 .style(Style::default().fg(Color::Yellow))
                 .block(Block::default().borders(Borders::ALL).title("Input"))
                 .render(&mut f, chunks[0]);
 
-            let messages = app
-                .messages
+            let messages = app_messages
                 .iter()
                 .enumerate()
                 .map(|(i, m)| Text::raw(format!("{}: {}", i, m)));
@@ -98,7 +103,7 @@ fn render(mut app: App) -> Result<(), failure::Error> {
         write!(
             terminal.backend_mut(),
             "{}",
-            Goto(4 + app.input.width() as u16, 4)
+            Goto(4 + app_input.width() as u16, 4)
         )?;
 
         // Handle input
@@ -108,19 +113,19 @@ fn render(mut app: App) -> Result<(), failure::Error> {
                     break;
                 }
                 Key::Char('\n') => {
-                    app.messages.push(app.input.drain(..).collect());
+                    app_messages.push(app_input.drain(..).collect());
                 }
                 Key::Char(c) => {
-                    app.input.push(c);
+                    app_input.push(c);
                 }
                 Key::Backspace => {
-                    app.input.pop();
+                    app_input.pop();
                 }
                 _ => {}
             },
             _ => {}
         }
-        info!("{}", app.input);
+        info!("{}", app_input);
     }
     Ok(())
 }
